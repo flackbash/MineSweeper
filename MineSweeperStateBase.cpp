@@ -5,7 +5,6 @@
 #include <ncurses.h>
 #include <time.h>
 #include <stdlib.h>
-#include <sys/ioctl.h>
 #include "./MineSweeperStateBase.h"
 
 #define RED     "\x1b[31m"
@@ -60,15 +59,13 @@ size_t numMines) {
 
 // _____________________________________________________________________________
 void MineSweeperState::setAlignment() {
-  // not quite sure what this one does exactly, but it's working... :/
-  struct winsize w;
-  ioctl(0, TIOCGWINSZ, &w);
-  int winWidth = w.ws_col;
-  int winHeight = w.ws_row;
+  // get window size and adjust alignment
+  int winWidth, winHeight;
+  getmaxyx(stdscr, winHeight, winWidth);
   _xAl = (winWidth / 2) - (_numCols);
-  _yAl = 10;
+  _yAl = 8;
 
-  // check whether the console window is big enough to display the field
+  // check whether the window is big enough to display the field
   // end program if it's not
   if (winWidth <= _numCols * 2 || winHeight <= _numRows * 2 + 10) {
     printf("\x1b[%d;%dH", _yAl - 7, _xAl + _numCols - 16);
@@ -114,7 +111,7 @@ void MineSweeperState::drawField() {
       } else if (cellInfo == REVEALED_MINE) {
         printf("%s*", RED);
 
-      // draw number of surrounding mines in different colors if cell is revealed
+      // draw number of surrounding mines in diff. colors if cell is revealed
       } else if (cellInfo >= 0) {
         switch (cellInfo) {
           case(REVEALED_ZERO):
@@ -189,30 +186,24 @@ void MineSweeperState::revealCell(size_t row, size_t col) {
     _mineField[row][col] = REVEALED_MINE;
   }
 
-  // find out how many mines there are in surrounding cells
+  // get number of mines in surrounding cells
   // do if the field is unrevealed and not a mine or marked as one
   if (getCellInfo(row, col) == UNREVEALED) {
-    if (getCellInfo(row + 1, col) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row + 1, col - 1) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row + 1, col + 1) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row -1, col + 1) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row -1, col) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row -1, col - 1) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row, col + 1) <= MARKED_CORRECT) mineCount++;
-    if (getCellInfo(row, col - 1) <= MARKED_CORRECT) mineCount++;
+    for (int i = -1; i < 2; i++) {
+      for (int j = -1; j < 2; j++) {
+        if (getCellInfo(row + i, col + j) <= MARKED_CORRECT) mineCount++;
+      }
+    }
     _mineField[row][col] = CellInfo(mineCount);
     _numRevealed++;
 
-    // reveal cells recursively if there is no mine in surrounding cells
+    // reveal cells recursively if there are no mines in surrounding cells
     if (mineCount == 0) {
-      revealCell(row + 1, col);
-      revealCell(row + 1, col + 1);
-      revealCell(row + 1, col - 1);
-      revealCell(row - 1, col + 1);
-      revealCell(row - 1, col);
-      revealCell(row - 1, col - 1);
-      revealCell(row, col + 1);
-      revealCell(row, col - 1);
+      for (int i = -1; i < 2; i++) {
+        for (int j = -1; j < 2; j++) {
+          revealCell(row + i, col + j);
+        }
+      }
     }
 
     // check whether the game is won already
